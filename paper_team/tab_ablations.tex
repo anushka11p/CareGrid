@@ -1,0 +1,20 @@
+\begin{table*}[t]
+\centering
+\caption{Ablations in Phoenix, one change per row. W: 24\,h warning. $\Delta$: first option minus second (negative favours the first). 95\,\% bootstrap interval for $\Delta$VDH; $p$: Wilcoxon signed-rank test on VDH. Paired over the 32 test outages, or $^\ddagger$all 112 outages. $^\dagger$Learned policies averaged over 5 seeds per outage.}
+\label{tab:ablations}
+\setlength{\tabcolsep}{6pt}
+\begin{tabular}{llrrl}
+\toprule
+Change & W & $\Delta$Dev.-h & $\Delta$VDH [95\,\% CI] & $p$ \\
+\midrule
+Shield vs.\ weight (greedy) & no & $-$105.0 & 183 [141, 230] & $2\times10^{-9}$ \\
+Shield vs.\ none (PPO-Lag.)$^\dagger$ & yes & $-$146.9 & 434 [365, 507] & $5\times10^{-10}$ \\
+Health twin vs.\ building order$^\ddagger$ & no & 0.0 & $-$822 [$-$941, $-$708] & $4\times10^{-20}$ \\
+Twin vs.\ headcount reward$^\dagger$ & yes & 0.0 & $-$9 [$-$12, $-$5] & $3\times10^{-4}$ \\
+PPO-Lag.\ vs.\ fixed pacing$^\dagger$ & yes & 0.0 & $-$153 [$-$185, $-$121] & $5\times10^{-10}$ \\
+Warning vs.\ none (shield) & -- & 0.0 & $-$944 [$-$1{,}070, $-$809] & $5\times10^{-10}$ \\
+Forecast $\tau_{90}$ vs.\ 48\,h$^\ddagger$ & yes & 0.0 & $-$88 [$-$103, $-$75] & $1\times10^{-19}$ \\
+Forecast $\tau_{90}$, $\hat\tau$ vs.\ fixed$^\ddagger$ & yes & 0.1 & 278 [208, 349] & $1\times10^{-8}$ \\
+\bottomrule
+\end{tabular}
+\end{table*}

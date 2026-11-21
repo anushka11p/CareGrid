@@ -1,0 +1,23 @@
+\begin{table}[t]
+\centering
+\caption{Robustness, 48\,h outages, mean over 28 start days, one factor varied at a time.}
+\label{tab:robust}
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{llrrrr}
+\toprule
+ & & \multicolumn{2}{c}{Device-h} & \multicolumn{2}{c}{PH$_{32}$} \\
+\cmidrule(lr){3-4}\cmidrule(lr){5-6}
+Factor & Level & Weight & Shield & Weight & Shield \\
+\midrule
+PV forecast factor $\alpha$ & 0.4 & 138.4 & 0.0 & 521 & 534 \\
+PV forecast factor $\alpha$ & 0.7 & 138.4 & 0.1 & 521 & 536 \\
+PV forecast factor $\alpha$ & 1 & 138.4 & 0.9 & 521 & 537 \\
+Sensor bias ($^\circ$C) & $-$2 & 116.1 & 0.1 & 548 & 548 \\
+Sensor bias ($^\circ$C) & 0 & 138.4 & 0.1 & 521 & 536 \\
+Sensor bias ($^\circ$C) & +2 & 155.7 & 0.1 & 494 & 519 \\
+Battery (kWh) & 100 & 170.5 & 0.1 & 522 & 542 \\
+Battery (kWh) & 125 & 154.8 & 0.1 & 521 & 539 \\
+Battery (kWh) & 150 & 138.4 & 0.1 & 521 & 536 \\
+\bottomrule
+\end{tabular}
+\end{table}
