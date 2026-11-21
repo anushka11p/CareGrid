@@ -144,7 +144,7 @@ def baseline_job(args):
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--steps", type=int, default=300_000)
+    ap.add_argument("--steps", type=int, default=200_000)   # SB3 rounds up to 200,704
     ap.add_argument("--seeds", type=int, default=5)
     ap.add_argument("--configs", default=",".join(CONFIGS))
     ap.add_argument("--workers", type=int, default=6)

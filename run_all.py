@@ -36,6 +36,8 @@ STAGES = [
     ("mappo",       CL, ["personC/citylearn_rl/mappo.py"], True),
     ("mappo_report", PY, ["personC/citylearn_rl/report.py"], False),
     ("ablations",   PY, ["personC/step7/ablations.py"], False),
+    ("robustness",  PY, ["personC/step7/robustness.py"], False),
+    ("paper",       PY, ["paper_team/make_paper.py"], False),
 ]
 
 

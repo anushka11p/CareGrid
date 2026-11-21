@@ -13,7 +13,7 @@ Training outages start 1-20 July 2018, test outages 21-28 July, 12/24/48/72 h, n
 Islanding uses the controller-layer workaround in citylearn_port/run_citylearn.py.
 
 Run with the CityLearn environment:
-    .venv-citylearn/bin/python personC/citylearn_rl/mappo.py --seeds 3 --episodes 400
+    .venv-citylearn/bin/python personC/citylearn_rl/mappo.py --seeds 3 --episodes 320
 """
 import argparse
 import itertools
@@ -46,7 +46,7 @@ RESIDENTS = {
     "home_07": [Resident(81, ("respiratory", "cardiovascular"))],
     "home_08": [Resident(70), Resident(73, ("cardiovascular",))],
     "home_09": [Resident(86, ("respiratory",)), Resident(79, ("diabetes",))],
-    "home_10": [Resident(83, ("respiratory",)), Resident(77, ("sleep_apnea",))],
+    "home_10": [Resident(83, ("respiratory", "sleep_apnea"))],          # one resident (medical.json)
 }
 VULN = {h: sum(r.score for r in rs) for h, rs in RESIDENTS.items()}
 
@@ -289,7 +289,7 @@ def baseline(args):
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--seeds", type=int, default=3)
-    ap.add_argument("--episodes", type=int, default=400)
+    ap.add_argument("--episodes", type=int, default=320)
     ap.add_argument("--workers", type=int, default=3)
     args = ap.parse_args()
     (HERE / "models").mkdir(exist_ok=True)
