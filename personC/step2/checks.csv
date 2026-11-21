@@ -1,0 +1,6 @@
+check,passed
+"Oracle loses no more medical service than any controller, every outage",True
+Oracle has the best heat + essential-load score among controllers that keep every device powered,True
+MPC planned to P90 loses no more medical service than MPC planned to the estimate (mean),True
+Equal curtailment has the most medical device-hours lost (mean),True
+Every shielded controller loses at most 0.5 device-hours per outage (mean),True

@@ -118,6 +118,7 @@ def run_oracle(inp, assets, blds, start, duration, soc0, tin0):
         "max_tin": 0.0,
         "pv_curtailed_kwh": 0.0,
         "hours_any_device_down": 0,
+        "ess_kwh_unserved": 0.0,
     }
 
     for t in range(duration):
@@ -154,6 +155,7 @@ def run_oracle(inp, assets, blds, start, duration, soc0, tin0):
             ac_unserved = max(0.0, ac_demand - ac_served)
 
             m["crit_kwh_unserved"] += crit_unserved
+            m["ess_kwh_unserved"] += ess_unserved
             m["ens_kwh"] += (
                 crit_unserved + ess_unserved
                 + disc_unserved + ac_unserved

@@ -478,7 +478,8 @@ def run_outage(inp, assets, blds, start, duration, controller, soc0, tin0,
 def metrics(trace, blds):
     m = {"crit_device_hours_down": 0, "crit_kwh_unserved": 0.0, "crit_kwh_demand": 0.0,
          "person_hours_danger": 0.0, "person_degree_hours": 0.0, "ens_kwh": 0.0,
-         "hw_ens": 0.0, "max_tin": 0.0, "pv_curtailed_kwh": 0.0, "hours_any_device_down": 0}
+         "hw_ens": 0.0, "max_tin": 0.0, "pv_curtailed_kwh": 0.0, "hours_any_device_down": 0,
+         "ess_kwh_unserved": 0.0}
     for h in trace:
         m["pv_curtailed_kwh"] += h["pv_curtailed"]
         any_down = False
@@ -492,6 +493,7 @@ def metrics(trace, blds):
             m["person_degree_hours"] += b.residents * max(0.0, s["tin"] - CAUTION_C)
             m["max_tin"] = max(m["max_tin"], s["tin"])
             m["ens_kwh"] += unc + s["ess_unserved"] + s["disc_unserved"] + s["ac_unserved"]
+            m["ess_kwh_unserved"] += s["ess_unserved"]
             # Health-weighted ENS: critical x10, cooling withheld while indoors is above
             # the caution line x3, essential x1, discretionary x0.1.
             m["hw_ens"] += (10 * unc + 3 * s["ac_unserved"] * (s["tin"] > CAUTION_C)
