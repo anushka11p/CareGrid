@@ -13,6 +13,7 @@ import numpy as np
 from scipy.optimize import linprog
 from scipy.sparse import coo_matrix
 
+from .health_twin import vulnerability
 from .sim import CAUTION_C, DANGER_C, W_DISCRETIONARY, W_ESSENTIAL, ac_needed, base_split, cop, pv_kw
 
 PRECOOL_MIN_C = 24.0
@@ -119,6 +120,7 @@ def run_oracle(inp, assets, blds, start, duration, soc0, tin0):
         "pv_curtailed_kwh": 0.0,
         "hours_any_device_down": 0,
         "ess_kwh_unserved": 0.0,
+        "vuln_degree_hours": 0.0,
     }
 
     for t in range(duration):
@@ -171,6 +173,7 @@ def run_oracle(inp, assets, blds, start, duration, soc0, tin0):
             m["person_degree_hours"] += (
                 bl.residents * max(0.0, tin - CAUTION_C)
             )
+            m["vuln_degree_hours"] += vulnerability(bl.name) * max(0.0, tin - CAUTION_C)
             m["max_tin"] = max(m["max_tin"], tin)
 
         m["hours_any_device_down"] += int(any_down)

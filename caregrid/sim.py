@@ -12,6 +12,8 @@ from dataclasses import dataclass, field
 import json
 import pathlib
 
+from .health_twin import vulnerability
+
 DATA = pathlib.Path(__file__).resolve().parent.parent / "data" / "processed" / "phoenix_july2023.json"
 
 # ---------------------------------------------------------------- parameters
@@ -20,6 +22,10 @@ CAUTION_C = 26.7           # NWS heat-index "caution" lower bound (80 F)
 DANGER_C = 32.2            # NWS "extreme caution" lower bound (90 F)
 ESSENTIAL_KW = 0.35        # per home-equivalent: food fridge, lights, phone, fans
 GRID_CO2_KG_PER_KWH = 0.352  # ASSUMPTION: EPA eGRID2022 AZNM average output rate (~776 lb/MWh); verify
+
+# Order in which the shield hands out thermal-safety cooling when energy is short:
+# "health_twin" (most vulnerable, hottest first) or "index" (building order; ablation).
+THERMAL_ORDER = "health_twin"
 
 # Values a controller places on one kWh of each load type (used by soft and shield).
 W_CRITICAL = 10.0
@@ -210,6 +216,8 @@ def _demands(inp, blds, t, tin):
                 b.ac_max_kw_th / cop(temp),
             ),
             "risk": max(0.0, t_noac - CAUTION_C) / (DANGER_C - CAUTION_C) * b.residents,
+            # health twin: heat-vulnerability of the residents x how far the home heads above 26.7 C
+            "vuln_risk": vulnerability(b.name) * max(0.0, t_noac - CAUTION_C),
         })
     return rows
 
@@ -333,10 +341,14 @@ def _thermal_shield_items(rows, ctx, nc_budget):
     alloc, remaining = _shield_budget(rows, ctx)
     remaining = min(remaining, nc_budget)
 
-    # Prioritize cooling needed to keep next-hour indoor temperature safe.
-    for i, r in enumerate(rows):
+    # Cooling needed to keep next-hour indoor temperature at the caution line,
+    # most vulnerable home first (health twin) unless the index-order ablation is on.
+    order = range(len(rows))
+    if THERMAL_ORDER == "health_twin":
+        order = sorted(order, key=lambda i: (-rows[i]["vuln_risk"], i))
+    for i in order:
         key = f"{i:02d}a"
-        cooling = min(r["safe_ac"], remaining)
+        cooling = min(rows[i]["safe_ac"], remaining)
         alloc[key] = cooling
         remaining -= cooling
 
@@ -479,7 +491,7 @@ def metrics(trace, blds):
     m = {"crit_device_hours_down": 0, "crit_kwh_unserved": 0.0, "crit_kwh_demand": 0.0,
          "person_hours_danger": 0.0, "person_degree_hours": 0.0, "ens_kwh": 0.0,
          "hw_ens": 0.0, "max_tin": 0.0, "pv_curtailed_kwh": 0.0, "hours_any_device_down": 0,
-         "ess_kwh_unserved": 0.0}
+         "ess_kwh_unserved": 0.0, "vuln_degree_hours": 0.0}
     for h in trace:
         m["pv_curtailed_kwh"] += h["pv_curtailed"]
         any_down = False
@@ -494,6 +506,7 @@ def metrics(trace, blds):
             m["max_tin"] = max(m["max_tin"], s["tin"])
             m["ens_kwh"] += unc + s["ess_unserved"] + s["disc_unserved"] + s["ac_unserved"]
             m["ess_kwh_unserved"] += s["ess_unserved"]
+            m["vuln_degree_hours"] += vulnerability(b.name) * max(0.0, s["tin"] - CAUTION_C)
             # Health-weighted ENS: critical x10, cooling withheld while indoors is above
             # the caution line x3, essential x1, discretionary x0.1.
             m["hw_ens"] += (10 * unc + 3 * s["ac_unserved"] * (s["tin"] > CAUTION_C)

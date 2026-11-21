@@ -5,6 +5,8 @@
   const SETPOINT_C = 26.0, CAUTION_C = 26.7, DANGER_C = 32.2, ESSENTIAL_KW = 0.35;
   const W_CRITICAL = 10.0, W_ESSENTIAL = 2.0, W_DISCRETIONARY = 0.1;
   const NIGHT = [22, 23, 0, 1, 2, 3, 4, 5];
+  // Health-twin vulnerability per building (sum of resident scores; caregrid/health_twin.py).
+  const VULN = {"H1": 1.65, "H2": 2.85, "H3": 2.2, "H4": 1.0, "H5": 2.45, "H6": 1.85, "H7": 2.05, "H8": 2.4, "Care facility": 10.95};
 
 const dev = (name, kw, hours, priority) => ({
   name,
@@ -121,6 +123,7 @@ devicePriorities: b.devices.filter((d) => active(d, hr)).map((d) => d.priority),
         ess, disc, ac: acNeeded(b, tin[i], temp, ghi),
         safeAc: safeCoolingNeeded(b, tin[i], temp, ghi),
         risk: Math.max(0, tNoac - CAUTION_C) / (DANGER_C - CAUTION_C) * b.residents,
+        vulnRisk: VULN[b.name] * Math.max(0, tNoac - CAUTION_C),
       };
     });
   }
@@ -244,13 +247,13 @@ function critPriorityFirst(rows, supply) {
 
       let remaining = ncBudget;
 
-      // Allocate thermal safety cooling before other flexible loads.
-      rows.forEach((r, i) => {
-        const key = pad(i) + "a";
-        const cooling = Math.min(r.safeAc, remaining);
-        alloc[key] = cooling;
+      // Thermal-safety cooling, most vulnerable home first (health twin).
+      const order = rows.map((r, i) => i).sort((x, y) => (rows[y].vulnRisk - rows[x].vulnRisk) || (x - y));
+      for (const i of order) {
+        const cooling = Math.min(rows[i].safeAc, remaining);
+        alloc[pad(i) + "a"] = cooling;
         remaining -= cooling;
-      });
+      }
 
       // Allocate remaining power to essential and discretionary loads.
       const otherItems = [];
