@@ -13,7 +13,7 @@ Surplus solar first refills the battery up to the reserve (dividing by eta^2 con
 the solar needed to store it, capped at the battery's charge power). `demo/engine.js` already had this line.
 
 The JavaScript demo engine also cooled toward 32.2 C while the Python cools toward 26.7 C (Person A's final
-choice; see `caregrid/sim_before_caution_target.py`). The JS now matches the Python.
+choice; see `archive/caregrid/sim_before_caution_target.py`). The JS now matches the Python.
 
 ## Validation
 All 28 outage starts (1-28 July, 14:00) x 4 durations, no warning (`before.csv`, `after.csv`):
