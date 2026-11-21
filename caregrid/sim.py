@@ -307,12 +307,12 @@ def ctrl_soft(rows, ctx):
     return _unpack(rows, alloc)
 
 
-def _shield_budget(rows, ctx):
-    """The runtime shield. (1) Critical devices are served first whenever any energy
-    exists. (2) A battery reserve sized to carry every critical device through the
-    worst-case (P90) restoration time, net of a conservative PV forecast, is locked;
-    below it, surplus PV refills the battery before anything else runs. Returns the
-    critical allocation and the kW budget left for non-critical loads this hour."""
+def _shield_parts(rows, ctx):
+    """The runtime shield. (1) Critical devices are served first, by priority tier, whenever
+    any energy exists. (2) A battery reserve sized to carry every critical device through the
+    worst-case (P90) restoration time, net of a conservative PV forecast, is locked. (3) Below
+    that reserve, surplus PV refills the battery before anything non-critical runs.
+    Returns the critical allocation and what is left for non-critical loads."""
     crit_items = sorted(
         (priority, i, j, kw, f"{i:02d}d{j}")
         for i, r in enumerate(rows)
@@ -331,26 +331,34 @@ def _shield_budget(rows, ctx):
     # Below the reserve, surplus PV refills the battery before anything non-critical runs.
     pv_left = max(0.0, pv_left - min(deficit_kwh / ctx["eta"] ** 2, ctx["batt_kw"]))
     batt_kw_left = max(0.0, ctx["batt_kw_avail"] - from_batt_for_crit)
-    remaining = max(1.0, ctx["forecast_end"] - ctx["t"])
-    return alloc, min(budget, pv_left + min(batt_kw_left, free_kwh / remaining))
+    return alloc, {"budget": budget, "pv_left": pv_left, "batt_kw_left": batt_kw_left, "free_kwh": free_kwh}
 
+
+def _shield_budget(rows, ctx):
+    """Critical allocation plus the non-critical budget: energy above the reserve, paced
+    evenly to the utility's restoration estimate."""
+    alloc, q = _shield_parts(rows, ctx)
+    remaining = max(1.0, ctx["forecast_end"] - ctx["t"])
+    return alloc, min(q["budget"], q["pv_left"] + min(q["batt_kw_left"], q["free_kwh"] / remaining))
+
+
+def _thermal_floor(rows, alloc, remaining):
+    """Cooling needed to keep next-hour indoor temperature at the caution line, most
+    vulnerable home first (health twin) unless the index-order ablation is on."""
+    order = range(len(rows))
+    if THERMAL_ORDER == "health_twin":
+        order = sorted(order, key=lambda i: (-rows[i]["vuln_risk"], i))
+    for i in order:
+        cooling = min(rows[i]["safe_ac"], remaining)
+        alloc[f"{i:02d}a"] = cooling
+        remaining -= cooling
+    return remaining
 
 
 def _thermal_shield_items(rows, ctx, nc_budget):
     """Allocate thermal safety cooling before other flexible loads."""
     alloc, remaining = _shield_budget(rows, ctx)
-    remaining = min(remaining, nc_budget)
-
-    # Cooling needed to keep next-hour indoor temperature at the caution line,
-    # most vulnerable home first (health twin) unless the index-order ablation is on.
-    order = range(len(rows))
-    if THERMAL_ORDER == "health_twin":
-        order = sorted(order, key=lambda i: (-rows[i]["vuln_risk"], i))
-    for i in order:
-        key = f"{i:02d}a"
-        cooling = min(rows[i]["safe_ac"], remaining)
-        alloc[key] = cooling
-        remaining -= cooling
+    remaining = _thermal_floor(rows, alloc, min(remaining, nc_budget))
 
     # Allocate leftover power to essential and discretionary loads.
     other_items = []
@@ -405,6 +413,36 @@ def apply_shield(rows, ctx, proposal):
 
 
 
+def ctrl_rl(rows, ctx, action, shielded=True):
+    """Learned policy inside the shield. `action["release"]` in [0, 1] is the share of battery
+    energy above the reserve the policy may spend this hour; `action["weights"]` (sums to 1)
+    shares extra cooling, beyond the thermal floor, between buildings. Without the shield
+    (ablation) the reserve and the refill rule are switched off; medical devices are still
+    served first within the hour."""
+    if not shielded:
+        ctx = dict(ctx, reserve_kwh=0.0)
+    alloc, q = _shield_parts(rows, ctx)
+    nc_budget = min(q["budget"], q["pv_left"] + min(q["batt_kw_left"], action["release"] * q["free_kwh"]))
+    remaining = _thermal_floor(rows, alloc, nc_budget)
+    w = action["weights"]
+    want = [max(0.0, r["ac"] - alloc.get(f"{i:02d}a", 0.0)) for i, r in enumerate(rows)]
+    pool = remaining
+    for i in range(len(rows)):
+        give = min(want[i], pool * w[i])
+        alloc[f"{i:02d}a"] = alloc.get(f"{i:02d}a", 0.0) + give
+        want[i] -= give
+        remaining -= give
+    for i in sorted(range(len(rows)), key=lambda i: -w[i]):
+        give = min(want[i], remaining)
+        alloc[f"{i:02d}a"] += give
+        remaining -= give
+    other = [(W_ESSENTIAL, f"{i:02d}e", r["ess"], True) for i, r in enumerate(rows)]
+    other += [(W_DISCRETIONARY, f"{i:02d}x", r["disc"], True) for i, r in enumerate(rows)]
+    more, _ = _greedy(other, remaining)
+    alloc.update(more)
+    return _unpack(rows, alloc)
+
+
 CONTROLLERS = {"equal": ctrl_equal, "rule": ctrl_rule, "soft": ctrl_soft, "shield": ctrl_shield}
 # Receding-horizon LP planners (Python only; see oracle.py).
 # name -> (critical weight, shielded?, plan to the P90 restoration time instead of the point estimate?)
@@ -415,7 +453,8 @@ MPC_CONTROLLERS = {
     "mpc_shield": (W_CRITICAL, True, False),
     "mpc_p90_shield": (1000.0, True, True),
 }
-SHIELDED = {"shield", "mpc_shield", "mpc_p90_shield"}
+SHIELDED = {"shield", "mpc_shield", "mpc_p90_shield", "rl_shield"}
+LEARNED = {"rl_shield", "rl_noreserve"}
 
 
 def shield_reserve(inp, assets, blds, t, p90_end, pv_hist):
@@ -431,60 +470,92 @@ def shield_reserve(inp, assets, blds, t, p90_end, pv_hist):
 
 
 # ---------------------------------------------------------------- outage simulation
+class OutageSim:
+    """One islanded outage, advanced one hour at a time. run_outage drives it with a fixed
+    controller; personC/phoenix_rl drives it with a learned policy."""
+
+    def __init__(self, inp, assets, blds, start, duration, soc0, tin0, forecast_hours=24,
+                 p90_hours=48, w_heat=1.0, sensor_bias_c=0.0, shielded=True, pv_hist=None):
+        self.inp, self.assets, self.blds = inp, assets, blds
+        self.start, self.duration = start, duration
+        self.forecast_hours, self.p90_hours, self.w_heat = forecast_hours, p90_hours, w_heat
+        self.sensor_bias_c, self.shielded = sensor_bias_c, shielded
+        self.soc, self.tin = soc0, list(tin0)
+        self.pv_hist = pv_hist or [pv_kw(assets, p, tt) for p, tt in zip(inp["poa"], inp["temp"])]
+        self.t, self.trace = start, []
+
+    @property
+    def done(self):
+        return self.t >= self.start + self.duration
+
+    def observe(self):
+        """Controller inputs for the current hour: (rows, ctx)."""
+        a, t, cap = self.assets, self.t, self.assets.batt_kwh
+        pv = self.pv_hist[t]
+        batt_kwh_avail = max(0.0, self.soc - a.soc_min) * cap * a.eta
+        batt_kw_avail = min(a.batt_kw, batt_kwh_avail)
+        ctx = {"t": t, "pv": pv, "soc": self.soc, "batt_kwh_avail": batt_kwh_avail,
+               "batt_kw_avail": batt_kw_avail, "supply": pv + batt_kw_avail,
+               "forecast_end": self.start + self.forecast_hours, "w_heat": self.w_heat, "reserve_kwh": 0.0,
+               "eta": a.eta, "batt_kw": a.batt_kw}
+        if self.shielded:
+            ctx["reserve_kwh"] = shield_reserve(self.inp, a, self.blds, t, self.start + self.p90_hours, self.pv_hist)
+        self.sensed_tin = [x + self.sensor_bias_c for x in self.tin]
+        return _demands(self.inp, self.blds, t, self.sensed_tin), ctx
+
+    def apply(self, rows, ctx, dec):
+        """Physics for one hour under decision `dec`; returns the hour's record."""
+        a, t, cap = self.assets, self.t, self.assets.batt_kwh
+        temp, ghi, pv = self.inp["temp"][t], self.inp["ghi"][t], ctx["pv"]
+        used = 0.0
+        hour = {"t": t, "time": self.inp["time"][t], "temp_out": temp, "pv": pv, "buildings": []}
+        for i, (b, r, d) in enumerate(zip(self.blds, rows, dec)):
+            served_kw = sum(kw for kw, ok in zip(r["devices"], d["devices"]) if ok)
+            used += served_kw + d["ess"] + d["ac"] + d["disc"]
+            hour["buildings"].append({
+                "tin": self.tin[i], "crit_demand": sum(r["devices"]), "crit_served": served_kw,
+                "devices_down": sum(1 for ok in d["devices"] if not ok),
+                "ess_unserved": r["ess"] - d["ess"], "disc_unserved": r["disc"] - d["disc"],
+                "ac_unserved": max(0.0, r["ac"] - d["ac"])})
+            self.tin[i] = next_temp(b, self.tin[i], temp, ghi, d["ac"])
+        net = used - pv
+        if net > 0:
+            self.soc -= net / a.eta / cap
+            curtailed = 0.0
+        else:
+            charge = min(-net, a.batt_kw, (1 - self.soc) * cap / a.eta)
+            self.soc += charge * a.eta / cap
+            curtailed = -net - charge
+        self.soc = max(a.soc_min - 1e-9, self.soc)
+        hour.update({"soc": self.soc, "pv_curtailed": curtailed, "reserve_kwh": ctx["reserve_kwh"]})
+        self.trace.append(hour)
+        self.t += 1
+        return hour
+
+
 def run_outage(inp, assets, blds, start, duration, controller, soc0, tin0,
                forecast_hours=24, p90_hours=48, w_heat=1.0,
-               sensor_bias_c=0.0):
+               sensor_bias_c=0.0, policy=None):
+    """Simulate one outage. The learned controllers ('rl_shield', 'rl_noreserve') need
+    `policy(sim, rows, ctx) -> {"release": float, "weights": list}`."""
     ctrl = CONTROLLERS.get(controller)
-    cap = assets.batt_kwh
-    soc, tin = soc0, list(tin0)
-    pv_hist = [pv_kw(assets, p, tt) for p, tt in zip(inp["poa"], inp["temp"])]
-    trace = []
-    for t in range(start, start + duration):
-        hr, temp, ghi = inp["hour"][t], inp["temp"][t], inp["ghi"][t]
-        pv = pv_hist[t]
-        batt_kwh_avail = max(0.0, soc - assets.soc_min) * cap * assets.eta
-        batt_kw_avail = min(assets.batt_kw, batt_kwh_avail)
-        ctx = {"t": t, "pv": pv, "soc": soc, "batt_kwh_avail": batt_kwh_avail,
-               "batt_kw_avail": batt_kw_avail, "supply": pv + batt_kw_avail,
-               "forecast_end": start + forecast_hours, "w_heat": w_heat, "reserve_kwh": 0.0,
-               "eta": assets.eta, "batt_kw": assets.batt_kw}
-        if controller in SHIELDED:
-            ctx["reserve_kwh"] = shield_reserve(inp, assets, blds, t, start + p90_hours, pv_hist)
-        sensed_tin = [x + sensor_bias_c for x in tin]
-        rows = _demands(inp, blds, t, sensed_tin)
-        if ctrl:
+    sim = OutageSim(inp, assets, blds, start, duration, soc0, tin0, forecast_hours, p90_hours,
+                    w_heat, sensor_bias_c, shielded=controller in SHIELDED)
+    while not sim.done:
+        rows, ctx = sim.observe()
+        if controller in LEARNED:
+            dec = ctrl_rl(rows, ctx, policy(sim, rows, ctx), shielded=controller in SHIELDED)
+        elif ctrl:
             dec = ctrl(rows, ctx)
         else:
             from .oracle import mpc_decision
             w_crit, shielded, robust = MPC_CONTROLLERS[controller]
             plan_end = start + p90_hours if robust else ctx["forecast_end"]
-            dec = mpc_decision(inp, assets, blds, t, soc, sensed_tin, plan_end, w_crit, w_heat)
+            dec = mpc_decision(inp, assets, blds, sim.t, sim.soc, sim.sensed_tin, plan_end, w_crit, w_heat)
             if shielded:
                 dec = apply_shield(rows, ctx, dec)
-
-        used = 0.0
-        hour = {"t": t, "time": inp["time"][t], "temp_out": temp, "pv": pv, "buildings": []}
-        for i, (b, r, d) in enumerate(zip(blds, rows, dec)):
-            served_kw = sum(kw for kw, ok in zip(r["devices"], d["devices"]) if ok)
-            used += served_kw + d["ess"] + d["ac"] + d["disc"]
-            hour["buildings"].append({
-                "tin": tin[i], "crit_demand": sum(r["devices"]), "crit_served": served_kw,
-                "devices_down": sum(1 for ok in d["devices"] if not ok),
-                "ess_unserved": r["ess"] - d["ess"], "disc_unserved": r["disc"] - d["disc"],
-                "ac_unserved": max(0.0, r["ac"] - d["ac"])})
-            tin[i] = next_temp(b, tin[i], temp, ghi, d["ac"])
-        net = used - pv
-        if net > 0:
-            soc -= net / assets.eta / cap
-            curtailed = 0.0
-        else:
-            charge = min(-net, assets.batt_kw, (1 - soc) * cap / assets.eta)
-            soc += charge * assets.eta / cap
-            curtailed = -net - charge
-        soc = max(assets.soc_min - 1e-9, soc)
-        hour.update({"soc": soc, "pv_curtailed": curtailed, "reserve_kwh": ctx["reserve_kwh"]})
-        trace.append(hour)
-    return trace
+        sim.apply(rows, ctx, dec)
+    return sim.trace
 
 
 def metrics(trace, blds):
