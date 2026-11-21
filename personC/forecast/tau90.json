@@ -1,0 +1,20 @@
+{
+ "typical": {
+  "first_hour_out": 1270.0,
+  "tau50_h": 1.8150078518189907,
+  "tau90_h": 4.065037983422389
+ },
+ "large": {
+  "first_hour_out": 2390.5,
+  "tau50_h": 1.5765689573838926,
+  "tau90_h": 4.506769957301411
+ },
+ "train_years": [
+  2015,
+  2016
+ ],
+ "test_years": [
+  2017
+ ],
+ "n_past_maricopa_summer_afternoon": 46
+}
