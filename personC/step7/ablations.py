@@ -93,10 +93,16 @@ def main():
         rows += paired(f"Learned release ({'warning' if w else 'no warning'})", "fixed pacing", "PPO-Lag.", fixed, learned, n)
     # 4. forecast worst case vs fixed 48 h
     tau = json.load(open(ROOT / "personC" / "forecast" / "tau90.json"))
+    # One change at a time: (a) only the worst-case time that sizes the reserve comes from the
+    # forecaster, the restoration estimate stays at the utility's 24 h; (b) both come from it.
     settings = [("fixed 48 h / 24 h", 48, 24)]
-    for key, lab in (("typical", "forecast, typical outage"), ("large", "forecast, large outage")):
+    for key in ("typical", "large"):
         if key in tau:
-            settings.append((lab, max(1, math.ceil(tau[key]["tau90_h"])), max(1, math.ceil(tau[key]["tau50_h"]))))
+            p90 = max(1, math.ceil(tau[key]["tau90_h"]))
+            settings.append((f"forecast P90 only, {key} outage", p90, 24))
+    if "typical" in tau:
+        settings.append(("forecast P90 and median, typical outage", max(1, math.ceil(tau["typical"]["tau90_h"])),
+                         max(1, math.ceil(tau["typical"]["tau50_h"]))))
     jobs = [(lab, p90, est, w, d, du) for (lab, p90, est), w, d, du in
             itertools.product(settings, (False, True), range(1, 29), (12, 24, 48, 72))]
     with Pool(6) as p:
@@ -106,7 +112,7 @@ def main():
         ref = fr[(fr.setting == settings[0][0]) & (fr.warning == w)].set_index(KEYS)[list(METRICS)]
         for lab, p90, est in settings[1:]:
             alt = fr[(fr.setting == lab) & (fr.warning == w)].set_index(KEYS)[list(METRICS)]
-            rows += paired(f"Worst-case time ({'warning' if w else 'no warning'})", "fixed 48 h",
+            rows += paired(f"Forecaster ({'warning' if w else 'no warning'})", "fixed P90 48 h, estimate 24 h",
                            f"{lab}: P90 {p90} h, estimate {est} h", ref, alt)
     # 5. warning vs no warning
     sh0 = base[(base.controller == "shield") & (~base.warning)].set_index(KEYS)[list(METRICS)]
