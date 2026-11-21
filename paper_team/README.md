@@ -8,8 +8,9 @@ and Dr. P. Madhavan (corresponding). It is a starting point to rewrite in your o
 python paper_team/make_paper.py     # from the project root: figures, tables, facts.json from the results
 cd paper_team && tectonic -X compile main.tex
 ```
-Word: `python paper_team/make_docx.py` writes `CareGrid_paper.docx` (single column, editable equations;
-needs pandoc). It is for rewriting; for submission go back to the IEEE template.
+Word: `python paper_team/make_docx.py` writes `CareGrid_paper.docx` in IEEE conference layout (US Letter,
+two columns, numbered equations, editable Word equations). Needs pandoc. Re-running it overwrites the file,
+so rewrite in a copy.
 Overleaf: upload `CareGrid_paper_overleaf.zip` (main.tex, refs.bib, tab_*.tex, fig_*.pdf) and compile with pdfLaTeX.
 
 ## Where each number comes from
