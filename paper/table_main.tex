@@ -1,0 +1,24 @@
+\begin{table*}[t]
+\centering
+\caption{Outage results without warning, pooled over 28 start days $\times$ 4 durations ($n=112$ per cell). Device-h: unpowered medical device-hours per outage. Crit.: critical energy served (\%). PH$_{32}$: person-hours indoors above 32.2$^\circ$C. PDH: person-degree-hours above 26.7$^\circ$C. --: not run on that platform.}
+\label{tab:main}
+\begin{tabular}{lrrrrrrr}
+\toprule
+ & \multicolumn{4}{c}{Phoenix community microgrid (Platform 1)} & \multicolumn{3}{c}{CityLearn v3, Austin (Platform 2)} \\
+\cmidrule(lr){2-5}\cmidrule(lr){6-8}
+Controller & Device-h & Crit.\ (\%) & PH$_{32}$ & PDH & Device-h & Crit.\ (\%) & PH$_{32}$ \\
+\midrule
+Equal curtailment (status quo) & 374.0 & 4.2 & 450 & 4{,}164 & 209.2 & 40.0 & 12 \\
+Rule-based critical-first & 148.6 & 67.9 & 511 & 4{,}799 & 104.8 & 71.2 & 30 \\
+Priority as weight, greedy & 103.8 & 82.0 & 409 & 4{,}073 & 81.4 & 81.4 & 32 \\
+Priority as weight, MPC & 0.8 & 99.9 & 345 & 3{,}727 & -- & -- & -- \\
+\quad MPC, critical weight $\times$100 & 0.8 & 99.9 & 345 & 3{,}727 & -- & -- & -- \\
+\quad MPC planned to P90 & 0.3 & 100.0 & 336 & 3{,}723 & -- & -- & -- \\
+\textbf{CareGrid shield, greedy} & 0.0 & 100.0 & 429 & 4{,}324 & 6.1 & 98.3 & 44 \\
+\textbf{CareGrid shield + MPC} & 0.0 & 100.0 & 363 & 3{,}974 & -- & -- & -- \\
+\textbf{CareGrid shield + P90 MPC} & 0.0 & 100.0 & 340 & 3{,}894 & -- & -- & -- \\
+Medical-only dispatch (bound) & -- & -- & -- & -- & 2.2 & 99.0 & 340 \\
+Perfect-foresight optimum (bound) & 0.0 & 100.0 & 320 & 3{,}613 & -- & -- & -- \\
+\bottomrule
+\end{tabular}
+\end{table*}

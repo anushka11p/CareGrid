@@ -1,0 +1,5 @@
+Controller,Reward,Constraint cost,Medical downtime,Danger person-hours,Final battery SOC
+Fixed 0.0,752.362,384.792,0,173,0.1
+Fixed 0.5,759.023,402.603,0,175,0.1
+Fixed 1.0,768.189,411.291,0,181,0.1
+PPO-Lagrangian,755.693,389.36,0,173,0.1

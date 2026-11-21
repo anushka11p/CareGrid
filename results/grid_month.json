@@ -1,0 +1,10 @@
+{
+  "load_kwh": 28437.05096104662,
+  "pv_kwh": 9621.397942349246,
+  "grid_import_kwh": 18816.238695656597,
+  "export_kwh": 0.0,
+  "pv_self_consumption_pct": 100.0,
+  "self_sufficiency_pct": 33.83196196598838,
+  "grid_co2_t": 6.623316020871122,
+  "co2_avoided_by_pv_t": 3.3867320757069344
+}

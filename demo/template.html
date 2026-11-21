@@ -1,0 +1,328 @@
+<title>CareGrid Outage Simulator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=Source+Sans+3:wght@400;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: control rail on the left, live readout on the right; pilot evidence below. Stacks to one column on phones. */
+:root {
+  --bg: #f6f7f8; --panel: #ffffff; --ink: #0f1a24; --ink-2: #4c5966; --line: #dfe3e7;
+  --accent: #2a78d6; --soft: #eb6834; --rule: #1baf7a; --equal: #9a9b98; --danger: #c43b3b; --ok: #0d7a3f;
+  --chip: #eaf1fb;
+  --f-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --f-body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --f-data: "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0f1419; --panel: #171e25; --ink: #eef2f5; --ink-2: #a9b4bf; --line: #2a343e;
+  --accent: #4a93ea; --soft: #f07a48; --rule: #26b886; --equal: #8a8c88; --danger: #ef6b6b; --ok: #3fbf76;
+  --chip: #1d2b3b; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0f1419; --panel: #171e25; --ink: #eef2f5; --ink-2: #a9b4bf; --line: #2a343e;
+  --accent: #4a93ea; --soft: #f07a48; --rule: #26b886; --equal: #8a8c88; --danger: #ef6b6b; --ok: #3fbf76;
+  --chip: #1d2b3b; color-scheme: dark }
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--ink); font: 16px/1.5 var(--f-body); }
+.wrap { max-width: 1180px; margin: 0 auto; padding-inline: 16px; padding-block: 28px 56px; display: grid; gap: 28px }
+header { display: grid; gap: 8px }
+.eyebrow { font: 600 12px/1 var(--f-data); letter-spacing: .08em; text-transform: uppercase; color: var(--accent) }
+h1 { font: 800 clamp(28px, 4vw, 42px)/1.05 var(--f-display); margin: 0; letter-spacing: -.01em; text-wrap: balance }
+h2 { font: 700 21px/1.2 var(--f-display); margin: 0; text-wrap: balance }
+h3 { font: 700 15px/1.3 var(--f-display); margin: 0 }
+.lede { color: var(--ink-2); max-width: 70ch; margin: 0 }
+.app { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 20px; align-items: start }
+@media (max-width: 860px) { .app { grid-template-columns: minmax(0, 1fr) } }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; min-width: 0 }
+.controls { display: grid; gap: 16px }
+.ctl { display: grid; gap: 6px }
+.ctl label { display: flex; justify-content: space-between; gap: 8px; font-weight: 600; font-size: 14px }
+.ctl output, .mono { font: 600 13px var(--f-data); color: var(--ink); font-variant-numeric: tabular-nums }
+.ctl small { color: var(--ink-2); font-size: 12.5px; line-height: 1.35 }
+input[type=range] { width: 100%; accent-color: var(--accent) }
+input:focus-visible, button:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+.toggle { display: flex; gap: 10px; align-items: flex-start; font-size: 14px }
+.toggle input { margin-top: 4px; accent-color: var(--accent) }
+.presets { display: flex; flex-wrap: wrap; gap: 6px }
+.presets button { font: 600 12.5px var(--f-body); border: 1px solid var(--line); background: var(--chip); color: var(--ink);
+  border-radius: 999px; padding: 5px 10px; cursor: pointer }
+.presets button:hover { border-color: var(--accent) }
+.readout { display: grid; gap: 18px; min-width: 0 }
+.scen { font: 13px var(--f-data); color: var(--ink-2) }
+.tablewrap { overflow-x: auto }
+table { border-collapse: collapse; width: 100%; font-size: 14px; font-variant-numeric: tabular-nums }
+th, td { text-align: right; padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap }
+th:first-child, td:first-child { text-align: left; white-space: normal }
+th { font: 600 12px var(--f-data); color: var(--ink-2); text-transform: uppercase; letter-spacing: .04em; vertical-align: bottom }
+td.num { font-family: var(--f-data); font-size: 13.5px }
+.sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 8px; vertical-align: 0 }
+.pill { display: inline-block; font: 600 11.5px var(--f-data); padding: 2px 7px; border-radius: 999px; margin-left: 6px }
+.pill.bad { color: var(--danger); border: 1px solid var(--danger) }
+.pill.good { color: var(--ok); border: 1px solid var(--ok) }
+tr.hl td { background: var(--chip) }
+.charts { display: grid; gap: 14px }
+.chart { display: grid; gap: 4px; min-width: 0 }
+.chart svg { width: 100%; height: auto; display: block; overflow: visible }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--ink-2) }
+.legend button { all: unset; cursor: pointer; display: inline-flex; align-items: center }
+.legend button[aria-pressed=false] { opacity: .35 }
+.tip { position: fixed; pointer-events: none; background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+  padding: 8px 10px; font: 12.5px/1.45 var(--f-data); color: var(--ink); box-shadow: 0 6px 20px rgb(0 0 0 / .12); z-index: 5 }
+.evidence { display: grid; gap: 16px }
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px }
+.finding { display: grid; gap: 6px }
+.finding .big { font: 800 30px/1 var(--f-display); font-variant-numeric: tabular-nums }
+.finding p { margin: 0; color: var(--ink-2); font-size: 14.5px }
+.note { color: var(--ink-2); font-size: 13.5px; max-width: 80ch; margin: 0 }
+details { border-top: 1px solid var(--line); padding-top: 12px }
+summary { cursor: pointer; font-weight: 600 }
+.src { font-size: 13px; color: var(--ink-2); display: grid; gap: 4px }
+.src a { color: var(--accent) }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">CareGrid pilot · Phoenix, AZ · July 2023 heatwave</div>
+    <h1>When the power goes out in a heatwave, who keeps their oxygen?</h1>
+    <p class="lede">Eight elderly households and a six-bed care facility share a 60 kWp solar array and a community battery. The grid fails on a real July 2023 afternoon. Each controller decides, hour by hour, what gets the scarce energy. Change the outage and see how each one copes.</p>
+  </header>
+
+  <section class="app" aria-label="Outage simulator">
+    <form class="panel controls" id="controls" onsubmit="return false">
+      <div class="presets" aria-label="Scenario presets">
+        <button type="button" data-preset="hottest">Hottest day, 48 h</button>
+        <button type="button" data-preset="asforecast">Restored on time</button>
+        <button type="button" data-preset="long">Runs 3 days</button>
+        <button type="button" data-preset="night">Starts at 2 am</button>
+      </div>
+      <div class="ctl"><label for="day">Outage starts <output id="dayOut"></output></label>
+        <input id="day" type="range" min="1" max="28" step="1" value="19"></div>
+      <div class="ctl"><label for="hour">Start time <output id="hourOut"></output></label>
+        <input id="hour" type="range" min="0" max="23" step="1" value="14"></div>
+      <div class="ctl"><label for="dur">Actual outage length <output id="durOut"></output></label>
+        <input id="dur" type="range" min="6" max="96" step="6" value="48">
+        <small>The utility's restoration estimate is always 24 h. The controllers don't know the real length.</small></div>
+      <div class="ctl"><label for="p90">Shield's worst-case bound <output id="p90Out"></output></label>
+        <input id="p90" type="range" min="24" max="96" step="12" value="48">
+        <small>The shield keeps enough battery to run every medical device until this time.</small></div>
+      <div class="ctl"><label for="batt">Community battery <output id="battOut"></output></label>
+        <input id="batt" type="range" min="50" max="400" step="25" value="150"></div>
+      <div class="ctl"><label for="pv">Solar array <output id="pvOut"></output></label>
+        <input id="pv" type="range" min="20" max="150" step="10" value="60"></div>
+      <div class="ctl"><label for="w">Weight on heat vs medical <output id="wOut"></output></label>
+        <input id="w" type="range" min="-2" max="3" step="1" value="0">
+        <small>How much the weighted and shield controllers value cooling a hot home, relative to running a medical device.</small></div>
+      <label class="toggle" for="pre"><input id="pre" type="checkbox"> <span>24 h outage warning: charge the battery to full before the grid goes down</span></label>
+    </form>
+
+    <div class="readout">
+      <div class="panel" style="display:grid;gap:12px">
+        <div class="scen" id="scen" aria-live="polite"></div>
+        <div class="tablewrap">
+          <table id="kpi">
+            <thead><tr><th>Controller</th><th>Medical device-hours<br>without power</th><th>Critical energy<br>served</th><th>Person-hours<br>indoors &gt; 32.2 °C</th><th>Hottest<br>indoor °C</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="panel charts">
+        <div class="legend" id="legend"></div>
+        <div class="chart"><h3>Battery charge</h3><svg id="cSoc" viewBox="0 0 760 170" role="img" aria-label="Battery state of charge over the outage"></svg></div>
+        <div class="chart"><h3>Care facility indoor temperature <span class="mono" style="color:var(--ink-2);font-weight:400">(dashed: outdoor air)</span></h3><svg id="cTemp" viewBox="0 0 760 190" role="img" aria-label="Care facility indoor temperature over the outage"></svg></div>
+        <div class="chart"><h3>Medical devices without power <span class="mono" style="color:var(--ink-2);font-weight:400">(of 12 in the community)</span></h3><svg id="cDown" viewBox="0 0 760 150" role="img" aria-label="Number of medical devices without power each hour"></svg></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="evidence" aria-label="Pilot results">
+    <div style="display:grid;gap:6px">
+      <div class="eyebrow">Pilot results · 6,048 simulated outages</div>
+      <h2>What the full experiment found</h2>
+      <p class="lede">28 outage start days × 4 real outage lengths × with/without warning, plus sweeps. It includes two planning controllers (MPC) that are too heavy to run in this page, and a perfect-foresight optimum as the upper bound.</p>
+    </div>
+    <div class="cols" id="findings"></div>
+    <div class="panel" style="display:grid;gap:10px">
+      <h3>Medical device-hours without power, by actual outage length (mean of 28 start days, no warning)</h3>
+      <div class="tablewrap"><table id="bydur"></table></div>
+      <p class="note">Every controller is told restoration will take 24 h. MPC plans with a perfect weather forecast. The perfect-foresight optimum also knows the true outage length, and its device on/off decisions are relaxed, so it is an upper bound and not something a real controller can reach.</p>
+    </div>
+    <details>
+      <summary>Model, data and limits</summary>
+      <div class="src" style="margin-top:10px">
+        <p class="note">Weather: Open-Meteo historical archive (ERA5 reanalysis), hourly, Phoenix, 30 Jun–3 Aug 2023. Household base load: NREL ResStock 2021 (AMY2018), Maricopa County single-family homes, July average by hour. Buildings: 1R1C grey-box thermal model calibrated to ResStock July cooling energy (model 55.9 kWh/day for July 2023 vs 51.1 kWh/day for cooler July 2018). Medical devices: oxygen concentrators 350 W, CPAP 60 W (nights), insulin/medication fridges 120–150 W, ventilator 150 W, power-wheelchair charger 300 W. Heat thresholds use NWS heat-index bands (26.7 °C caution, 32.2 °C extreme caution); Phoenix humidity is low enough that air temperature stands in for heat index.</p>
+        <p class="note">Limits: simulation only, nine synthetic households, hourly steps, one city and one month, no distribution-network constraints, constant grid carbon factor (eGRID AZNM assumption). The controllers are rule-based and optimisation-based; the constrained-RL policy proposed for CareGrid is future work, and the shield is designed to wrap it.</p>
+        <a href="https://open-meteo.com/en/docs/historical-weather-api">Open-Meteo historical weather API</a>
+        <a href="https://resstock.nrel.gov/">NREL ResStock</a>
+      </div>
+    </details>
+  </section>
+</div>
+<div class="tip" id="tip" hidden></div>
+
+<script>/*__ENGINE__*/</script>
+<script>
+const INP = /*__DATA__*/null;
+const PILOT = /*__SUMMARY__*/null;
+const E = window.CareGrid;
+const CTRLS = [
+  { id: "shield", name: "CareGrid shield", desc: "medical load is a hard constraint", col: "--accent" },
+  { id: "soft", name: "Priority as a weight", desc: "medical load is a high reward", col: "--soft" },
+  { id: "rule", name: "Rule-based", desc: "medical first, AC only above 40% battery", col: "--rule" },
+  { id: "equal", name: "Equal curtailment", desc: "today's default: all loads treated the same", col: "--equal" },
+];
+const visible = Object.fromEntries(CTRLS.map(c => [c.id, true]));
+const $ = (id) => document.getElementById(id);
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const W_STEPS = [0.25, 0.5, 1, 2, 4, 8];
+const wVal = () => W_STEPS[+$("w").value + 2];
+const fmtHour = (h) => `${String(h).padStart(2, "0")}:00`;
+let last = null;
+
+function params() {
+  return { day: +$("day").value, hour: +$("hour").value, duration: +$("dur").value, p90Hours: +$("p90").value,
+    wHeat: wVal(), precharge: $("pre").checked,
+    assets: { battKwh: +$("batt").value, battKw: +$("batt").value * 0.4, pvKwp: +$("pv").value } };
+}
+
+function run() {
+  const p = params();
+  $("dayOut").textContent = `${p.day} July 2023`;
+  $("hourOut").textContent = fmtHour(p.hour);
+  $("durOut").textContent = `${p.duration} h`;
+  $("p90Out").textContent = `${p.p90Hours} h`;
+  $("battOut").textContent = `${p.assets.battKwh} kWh`;
+  $("pvOut").textContent = `${p.assets.pvKwp} kWp`;
+  $("wOut").textContent = `× ${p.wHeat}`;
+  const res = {};
+  for (const c of CTRLS) res[c.id] = E.scenario(INP, Object.assign({ controller: c.id }, p));
+  const start = 24 * p.day + p.hour;
+  const temps = INP.temp.slice(start, start + p.duration);
+  $("scen").textContent = `${INP.time[start].replace("T", " ")} → ${p.duration} h island · outdoor peak ${Math.max(...temps).toFixed(1)} °C · battery ${(res.shield.soc0 * 100).toFixed(0)}% at outage start`;
+  const tb = $("kpi").querySelector("tbody");
+  tb.innerHTML = "";
+  for (const c of CTRLS) {
+    const m = res[c.id].metrics;
+    const tr = document.createElement("tr");
+    if (c.id === "shield") tr.className = "hl";
+    const flag = m.crit_device_hours_down === 0 ? '<span class="pill good">0 lost</span>' : "";
+    tr.innerHTML = `<td><span class="sw" style="background:var(${c.col})"></span><strong>${c.name}</strong><br><small style="color:var(--ink-2)">${c.desc}</small></td>
+      <td class="num">${m.crit_device_hours_down}${flag}</td><td class="num">${m.crit_served_pct.toFixed(1)}%</td>
+      <td class="num">${m.person_hours_danger.toFixed(0)}</td><td class="num">${m.max_tin.toFixed(1)}</td>`;
+    tb.appendChild(tr);
+  }
+  last = { res, p, start };
+  draw();
+}
+
+function axes(svg, H, yMax, yTicks, fmtY, n, start) {
+  const L = 40, R = 750, T = 8, B = H - 22;
+  const x = (i) => L + (R - L) * (n <= 1 ? 0 : i / (n - 1));
+  const y = (v) => B - (B - T) * (v / yMax);
+  let g = "";
+  for (const v of yTicks) g += `<line x1="${L}" x2="${R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)" stroke-width="1"/><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end" font-size="11" fill="var(--ink-2)" font-family="var(--f-data)">${fmtY(v)}</text>`;
+  const step = n > 48 ? 12 : 6;
+  for (let i = 0; i < n; i += step) {
+    const hr = INP.hour[start + i];
+    g += `<text x="${x(i)}" y="${H - 6}" text-anchor="middle" font-size="11" fill="var(--ink-2)" font-family="var(--f-data)">${i === 0 ? "start" : "+" + i + "h"}${hr === 0 ? " ·0h" : ""}</text>`;
+  }
+  return { L, R, T, B, x, y, g };
+}
+
+function path(vals, x, y, stepped) {
+  return vals.map((v, i) => {
+    if (!stepped || i === 0) return `${i ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`;
+    return `L${x(i).toFixed(1)},${y(vals[i - 1]).toFixed(1)}L${x(i).toFixed(1)},${y(v).toFixed(1)}`;
+  }).join("");
+}
+
+function draw() {
+  if (!last) return;
+  const { res, p, start } = last;
+  const n = p.duration;
+  const series = CTRLS.filter(c => visible[c.id]);
+  // battery
+  const a1 = axes($("cSoc"), 170, 100, [0, 25, 50, 75, 100], v => v + "%", n, start);
+  let s1 = a1.g;
+  const fc = 24;
+  if (fc < n) s1 += `<line x1="${a1.x(fc)}" x2="${a1.x(fc)}" y1="${a1.T}" y2="${a1.B}" stroke="var(--ink-2)" stroke-dasharray="3 3"/><text x="${a1.x(fc) + 4}" y="${a1.T + 10}" font-size="11" fill="var(--ink-2)">utility's 24 h estimate</text>`;
+  for (const c of series) s1 += `<path d="${path(res[c.id].trace.map(h => h.soc * 100), a1.x, a1.y)}" fill="none" stroke="var(${c.col})" stroke-width="2"/>`;
+  $("cSoc").innerHTML = s1;
+  // temperature
+  const out = INP.temp.slice(start, start + n);
+  const tMax = Math.ceil((Math.max(...out, ...series.flatMap(c => res[c.id].trace.map(h => h.buildings[8].tin))) + 1) / 5) * 5;
+  const a2 = axes($("cTemp"), 190, tMax, [0, 10, 20, 30, 40, 50].filter(v => v <= tMax), v => v + "°", n, start);
+  let s2 = a2.g + `<line x1="${a2.L}" x2="${a2.R}" y1="${a2.y(32.2)}" y2="${a2.y(32.2)}" stroke="var(--danger)" stroke-dasharray="2 3"/><text x="${a2.R}" y="${a2.y(32.2) - 4}" text-anchor="end" font-size="11" fill="var(--danger)">32.2 °C extreme caution</text>`;
+  s2 += `<path d="${path(out, a2.x, a2.y)}" fill="none" stroke="var(--ink-2)" stroke-width="1.5" stroke-dasharray="4 3"/>`;
+  for (const c of series) s2 += `<path d="${path(res[c.id].trace.map(h => h.buildings[8].tin), a2.x, a2.y)}" fill="none" stroke="var(${c.col})" stroke-width="2"/>`;
+  $("cTemp").innerHTML = s2;
+  // devices down
+  const a3 = axes($("cDown"), 150, 12, [0, 4, 8, 12], v => v, n, start);
+  let s3 = a3.g;
+  for (const c of series) s3 += `<path d="${path(res[c.id].trace.map(h => h.buildings.reduce((s, b) => s + b.devicesDown, 0)), a3.x, a3.y, true)}" fill="none" stroke="var(${c.col})" stroke-width="2"/>`;
+  $("cDown").innerHTML = s3;
+  for (const id of ["cSoc", "cTemp", "cDown"]) $(id).insertAdjacentHTML("beforeend", `<rect x="40" y="0" width="710" height="100%" fill="transparent" class="hit"/><line class="cross" x1="0" x2="0" y1="8" y2="${$(id).viewBox.baseVal.height - 22}" stroke="var(--ink-2)" stroke-width="1" visibility="hidden"/>`);
+}
+
+function legend() {
+  $("legend").innerHTML = CTRLS.map(c => `<button type="button" data-id="${c.id}" aria-pressed="${visible[c.id]}"><span class="sw" style="background:var(${c.col})"></span>${c.name}</button>`).join("");
+}
+$("legend").addEventListener("click", (e) => {
+  const b = e.target.closest("button"); if (!b) return;
+  visible[b.dataset.id] = !visible[b.dataset.id]; legend(); draw();
+});
+
+// hover: crosshair + tooltip on all three charts
+function hover(e) {
+  if (!last) return;
+  const svg = e.currentTarget, r = svg.getBoundingClientRect();
+  const vx = (e.clientX - r.left) / r.width * 760;
+  const n = last.p.duration, i = Math.max(0, Math.min(n - 1, Math.round((vx - 40) / 710 * (n - 1))));
+  for (const id of ["cSoc", "cTemp", "cDown"]) {
+    const c = $(id).querySelector(".cross"); if (!c) continue;
+    const xx = 40 + 710 * (n <= 1 ? 0 : i / (n - 1));
+    c.setAttribute("x1", xx); c.setAttribute("x2", xx); c.setAttribute("visibility", "visible");
+  }
+  const t = last.start + i;
+  let html = `<strong>${INP.time[t].replace("T", " ")}</strong> · +${i} h · outdoor ${INP.temp[t].toFixed(1)} °C`;
+  for (const c of CTRLS.filter(c => visible[c.id])) {
+    const h = last.res[c.id].trace[i];
+    const down = h.buildings.reduce((s, b) => s + b.devicesDown, 0);
+    html += `<br><span class="sw" style="background:var(${c.col})"></span>${c.name}: ${(h.soc * 100).toFixed(0)}% battery · facility ${h.buildings[8].tin.toFixed(1)} °C · ${down} device${down === 1 ? "" : "s"} off`;
+  }
+  const tip = $("tip"); tip.innerHTML = html; tip.hidden = false;
+  const tw = tip.offsetWidth;
+  tip.style.left = Math.min(window.innerWidth - tw - 8, e.clientX + 14) + "px";
+  tip.style.top = (e.clientY + 14) + "px";
+}
+function unhover() {
+  $("tip").hidden = true;
+  document.querySelectorAll(".cross").forEach(c => c.setAttribute("visibility", "hidden"));
+}
+for (const id of ["cSoc", "cTemp", "cDown"]) { $(id).addEventListener("pointermove", hover); $(id).addEventListener("pointerleave", unhover); }
+
+const PRESETS = {
+  hottest: { day: 19, hour: 14, dur: 48 }, asforecast: { day: 19, hour: 14, dur: 24 },
+  long: { day: 19, hour: 14, dur: 72 }, night: { day: 19, hour: 2, dur: 48 },
+};
+document.querySelectorAll("[data-preset]").forEach(b => b.addEventListener("click", () => {
+  const p = PRESETS[b.dataset.preset];
+  $("day").value = p.day; $("hour").value = p.hour; $("dur").value = p.dur; run();
+}));
+$("controls").addEventListener("input", run);
+
+function pilot() {
+  if (!PILOT) return;
+  const L = { equal: "Equal curtailment (status quo)", rule: "Rule-based critical-first", soft: "Priority as weight (greedy)",
+    mpc: "Priority as weight (MPC)", mpc_hi: "MPC, medical weight × 100", mpc_p90: "MPC planned to worst-case horizon",
+    shield: "CareGrid shield (greedy)", mpc_shield: "CareGrid shield + MPC", mpc_p90_shield: "CareGrid shield + worst-case MPC",
+    oracle: "Perfect-foresight optimum (bound)" };
+  const bd = PILOT.by_duration_crit, durs = Object.keys(bd.shield);
+  let h = `<thead><tr><th>Controller</th>${durs.map(d => `<th>${d} h</th>`).join("")}</tr></thead><tbody>`;
+  for (const k of Object.keys(L)) {
+    if (!bd[k]) continue;
+    h += `<tr class="${k.includes("shield") ? "hl" : ""}"><td>${L[k]}</td>${durs.map(d => `<td class="num">${bd[k][d].toFixed(1)}</td>`).join("")}</tr>`;
+  }
+  $("bydur").innerHTML = h + "</tbody>";
+  $("findings").innerHTML = (PILOT.findings || []).map(f => `<div class="panel finding"><div class="big" style="color:var(${f.col || "--ink"})">${f.big}</div><h3>${f.title}</h3><p>${f.text}</p></div>`).join("");
+}
+
+legend(); run(); pilot();
+</script>

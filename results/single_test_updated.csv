@@ -1,0 +1,4 @@
+controller,day,start_hour,duration_h,precharge,batt_kwh,w_heat,p90_h,soc0,precharge_extra_grid_kwh,crit_device_hours_down,crit_kwh_unserved,crit_kwh_demand,person_hours_danger,person_degree_hours,ens_kwh,hw_ens,max_tin,pv_curtailed_kwh,hours_any_device_down,crit_served_pct
+soft,3,14,12,False,150.0,1.0,48,0.3,0.0,0,0.0,29.160000000000014,75.0,775.909159387676,563.6030357315655,1313.1118040780184,35.96394499803597,0.0,0,100.0
+shield,3,14,12,False,150.0,1.0,48,0.3,0.0,0,0.0,29.160000000000014,77.0,795.2992798183783,582.4039389360581,1244.375832181279,36.06564258653731,0.0,0,100.0
+mpc_shield,3,14,12,False,150.0,1.0,48,0.3,0.0,0,0.0,29.160000000000014,77.0,795.2992798183782,589.6550958082171,1248.880947868495,36.06564258653731,0.0,0,100.0
