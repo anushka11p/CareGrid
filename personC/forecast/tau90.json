@@ -1,20 +1,26 @@
 {
  "typical": {
-  "first_hour_out": 1270.0,
-  "tau50_h": 1.8150078518189907,
-  "tau90_h": 4.065037983422389
+  "first_hour_out": 1261.0,
+  "tau50_h": 1.8120770474939434,
+  "tau90_h": 5.736371938969889
  },
  "large": {
-  "first_hour_out": 2390.5,
-  "tau50_h": 1.5765689573838926,
-  "tau90_h": 4.506769957301411
+  "first_hour_out": 2444.4,
+  "tau50_h": 2.2195114322269145,
+  "tau90_h": 7.364020630176713
  },
  "train_years": [
   2015,
-  2016
+  2016,
+  2017,
+  2018,
+  2019,
+  2020,
+  2021
  ],
  "test_years": [
-  2017
+  2023,
+  2024
  ],
- "n_past_maricopa_summer_afternoon": 46
+ "n_past_maricopa_summer_afternoon": 229
 }

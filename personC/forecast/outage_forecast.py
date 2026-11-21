@@ -34,6 +34,7 @@ MARICOPA = 4013
 
 def events_from_year(path):
     d = pd.read_csv(path, dtype={"fips_code": int})
+    d = d.rename(columns={"sum": "customers_out"})      # the 2023 file names the count column "sum"
     d["t"] = pd.to_datetime(d.run_start_time)
     d = d[d.customers_out >= MIN_OUT].sort_values(["fips_code", "t"])
     out = []
@@ -125,7 +126,7 @@ def main():
                         for a, r in res.items()])
     md = (f"# Step 4: outage-duration forecaster (EAGLE-I, Arizona)\n\n"
           f"Events: >= {MIN_OUT} customers out, peak >= {PEAK_MIN}, gaps <= 30 min merged. "
-          f"Train {sorted(tr.year.unique())}, test {sorted(te.year.unique())} "
+          f"Train {[int(y) for y in sorted(tr.year.unique())]}, test {[int(y) for y in sorted(te.year.unique())]} "
           f"({len(tr)} / {len(te)} events).\n\n## Events per year\n\n" + desc.round(1).to_markdown()
           + "\n\n## Test-set quality (log duration)\n\n" + tab.to_markdown(index=False)
           + f"\n\nCoverage = share of test outages shorter than the predicted quantile.\n\n"
