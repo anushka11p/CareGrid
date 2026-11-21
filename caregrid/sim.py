@@ -320,7 +320,8 @@ def _shield_budget(rows, ctx):
     free_kwh = max(0.0, ctx["batt_kwh_avail"] - from_batt_for_crit - ctx["reserve_kwh"])
     pv_left = max(0.0, ctx["pv"] - crit_used)
     deficit_kwh = max(0.0, ctx["reserve_kwh"] - (ctx["batt_kwh_avail"] - from_batt_for_crit))
-    pv_left = max(0.0, pv_left)
+    # Below the reserve, surplus PV refills the battery before anything non-critical runs.
+    pv_left = max(0.0, pv_left - min(deficit_kwh / ctx["eta"] ** 2, ctx["batt_kw"]))
     batt_kw_left = max(0.0, ctx["batt_kw_avail"] - from_batt_for_crit)
     remaining = max(1.0, ctx["forecast_end"] - ctx["t"])
     return alloc, min(budget, pv_left + min(batt_kw_left, free_kwh / remaining))

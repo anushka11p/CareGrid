@@ -69,7 +69,7 @@ function community() {
   function safeCoolingNeeded(b, tin, temp, ghi) {
     const required = Math.max(
       0.0,
-      (heatGain(b, tin, temp, ghi) - b.C * (DANGER_C - tin)) / cop(temp)
+      (heatGain(b, tin, temp, ghi) - b.C * (CAUTION_C - tin)) / cop(temp)
     );
     const maxCoolingKw = b.acMaxTh / cop(temp);
     return Math.min(required, maxCoolingKw);
