@@ -1,38 +1,4 @@
-# CareGrid
-
-Energy management that keeps elderly residents' medical devices powered during heatwave power
-outages. Team project: Person A (medical priority tiers, thermal-safety shield, robustness), Person B
-(Phoenix RL environment), Person C (validation, health twin, outage forecaster, PPO-Lagrangian, MAPPO,
-ablations, integration). Person C's work and results: [`personC/README.md`](personC/README.md).
-
-## Run everything
-
-```bash
-uv venv --python 3.11 .venv && uv pip install --python .venv/bin/python -r requirements.txt
-uv venv --python 3.11 .venv-citylearn && uv pip install --python .venv-citylearn/bin/python -r requirements-citylearn.txt
-.venv/bin/python run_all.py              # everything, about 2-3 h on 8 cores
-.venv/bin/python run_all.py --skip-long  # everything except RL training and the large grids, about 2 min
-```
-
-## Layout
-
-| Folder | Contents |
-|---|---|
-| `caregrid/` | Simulator (`sim.py`), linear-program controllers and bound (`oracle.py`), health twin (`health_twin.py`) |
-| `data/` | Input downloads (`fetch_data.py`), processed Phoenix inputs, CityLearn dataset; EAGLE-I goes to `data/raw/eaglei/` |
-| `experiments/` | Main Phoenix grid (`run_pilot.py`, `analyze.py`) and Person A's robustness scripts |
-| `citylearn_port/` | CityLearn v3 replication with the islanding workaround |
-| `personB/` | Person B's Phoenix RL environment and trained models, as handed over |
-| `personC/` | Steps 0-8: validation, fixes, health twin, forecaster, PPO-Lagrangian, MAPPO, ablations |
-| `results/`, `figures/` | Main-grid and CityLearn outputs |
-| `tests/` | Python/JavaScript parity test |
-| `demo/` | Interactive browser demo (JavaScript port of the simulator) |
-| `paper/` | Earlier paper draft and figures |
-| `archive/` | Development snapshots kept for the record |
-
----
-
-## Original pilot description
+# CareGrid pilot simulation
 
 Preliminary, reproducible evidence for the CareGrid proposal. It tests the core claim from
 the research briefing: protecting elderly residents' medical loads works better as a **hard
